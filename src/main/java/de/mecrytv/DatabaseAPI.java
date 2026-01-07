@@ -7,6 +7,10 @@ import de.mecrytv.model.ICacheModel;
 import de.mecrytv.redis.RedisManager;
 import de.mecrytv.utils.DatabaseConfig;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,6 +36,35 @@ public class DatabaseAPI {
     }
 
     public static DatabaseAPI getInstance() { return instance; }
+
+    public String getGeneric(String table, String keyColumn, String valueColumn, String identifier) {
+        String redisKey = "cache:" + table + ":" + identifier;
+        String cachedValue = redisManager.get(redisKey);
+
+        if (cachedValue != null) {
+            return cachedValue;
+        }
+
+        String query = String.format("SELECT %s FROM %s WHERE %s = ? LIMIT 1", valueColumn, table, keyColumn);
+
+        try (Connection conn = mariaDBManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setString(1, identifier);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                String result = rs.getString(valueColumn);
+
+                redisManager.setex(redisKey, 3600, result);
+                return result;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
 
     @SuppressWarnings("unchecked")
     public static <T extends ICacheModel> T get(String nodeName, String id) {
