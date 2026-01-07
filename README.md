@@ -27,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'de.mecrytv:database-api:1.0.0'
+    implementation 'de.mecrytv:DatabaseAPI:1.0.0'
 }
 ```
 
@@ -48,7 +48,7 @@ Füge in deiner `pom.xml` Datei folgendes hinzu:
 <dependencies>
     <dependency>
         <groupId>de.mecrytv</groupId>
-        <artifactId>database-api</artifactId>
+        <artifactId>DatabaseAPI</artifactId>
         <version>1.0.0</version>
         <scope>compile</scope>
     </dependency>
