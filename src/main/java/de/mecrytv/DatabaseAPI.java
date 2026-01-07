@@ -37,15 +37,16 @@ public class DatabaseAPI {
 
     public static DatabaseAPI getInstance() { return instance; }
 
-    public String getGeneric(String table, String keyColumn, String valueColumn, String identifier) {
-        String redisKey = "cache:" + table + ":" + identifier;
+    public String getGeneric(String database, String table, String keyColumn, String valueColumn, String identifier) {
+        String redisKey = "cache:" + database + ":" + table + ":" + identifier;
         String cachedValue = redisManager.get(redisKey);
 
         if (cachedValue != null) {
             return cachedValue;
         }
 
-        String query = String.format("SELECT %s FROM %s WHERE %s = ? LIMIT 1", valueColumn, table, keyColumn);
+        String query = String.format("SELECT %s FROM %s.%s WHERE %s = ? LIMIT 1",
+                valueColumn, database, table, keyColumn);
 
         try (Connection conn = mariaDBManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(query)) {
@@ -56,11 +57,11 @@ public class DatabaseAPI {
             if (rs.next()) {
                 String result = rs.getString(valueColumn);
 
-                redisManager.setex(redisKey, 3600, result);
+                redisManager.setex(redisKey, 1800, result);
                 return result;
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("[DatabaseAPI] Fehler bei Abfrage von " + database + "." + table + ": " + e.getMessage());
         }
 
         return null;
