@@ -100,18 +100,18 @@ public abstract class CacheNode<T extends ICacheModel> {
         java.util.Map<String, T> mergedData = new java.util.HashMap<>();
 
         for (T dbModel : getAllFromDatabase()) {
-            if (!redisManager.sismember(deletedSetKey, dbModel.getIdentifier())) {
-                mergedData.put(dbModel.getIdentifier(), dbModel);
-            }
+            mergedData.put(dbModel.getIdentifier(), dbModel);
         }
 
-        java.util.Set<String> redisKeys = redisManager.keys(redisPrefix + "*");
-        for (String key : redisKeys) {
-            String identifier = key.replace(redisPrefix, "");
-            T redisModel = get(identifier);
-
-            if (redisModel != null) {
-                mergedData.put(identifier, redisModel);
+        java.util.Set<String> deletedIds = redisManager.smembers(deletedSetKey);
+        for (String id : deletedIds) {
+            mergedData.remove(id);
+        }
+        java.util.Set<String> dirtyIds = redisManager.smembers(dirtySetKey);
+        for (String id : dirtyIds) {
+            T cachedModel = get(id);
+            if (cachedModel != null) {
+                mergedData.put(id, cachedModel);
             }
         }
 

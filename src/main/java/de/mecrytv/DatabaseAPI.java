@@ -83,7 +83,7 @@ public class DatabaseAPI {
 
     @SuppressWarnings("unchecked")
     public static <T extends ICacheModel> List<T> getAll(String nodeName) {
-        return (List<T>) instance.cacheService.getNode(nodeName).getAllFromDatabase();
+        return (List<T>) instance.cacheService.getNode(nodeName).getAll();
     }
 
     public <T extends ICacheModel> void registerModel(String tableName, Supplier<T> factory) {
