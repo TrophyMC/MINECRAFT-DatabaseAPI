@@ -5,126 +5,77 @@ import com.google.gson.JsonObject;
 import de.mecrytv.mariadb.MariaDBManager;
 import de.mecrytv.model.ICacheModel;
 import de.mecrytv.redis.RedisManager;
-
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.sql.*;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 public abstract class CacheNode<T extends ICacheModel> {
-    protected final String nodeName;
+    protected final String nodeName, redisPrefix, dirtySet;
     protected final Supplier<T> factory;
+    protected final RedisManager redis;
+    protected final MariaDBManager db;
     protected final Gson gson = new Gson();
-    protected final String redisPrefix;
-    protected final String dirtySetKey;
-    protected final String deletedSetKey;
-    protected final RedisManager redisManager;
-    protected final MariaDBManager mariaDBManager;
 
-    public CacheNode(String nodeName, Supplier<T> factory, RedisManager redisManager, MariaDBManager mariaDBManager) {
+    public CacheNode(String nodeName, Supplier<T> factory, RedisManager redis, MariaDBManager db) {
         this.nodeName = nodeName;
         this.factory = factory;
+        this.redis = redis;
+        this.db = db;
         this.redisPrefix = "cache:" + nodeName + ":";
-        this.dirtySetKey = "dirty:" + nodeName;
-        this.deletedSetKey = "deleted:" + nodeName;
-        this.redisManager = redisManager;
-        this.mariaDBManager = mariaDBManager;
+        this.dirtySet = "dirty:" + nodeName;
     }
 
     public void set(T model) {
-        String key = redisPrefix + model.getIdentifier();
-        redisManager.set(key, model.serialize().toString());
-
-        redisManager.srem(deletedSetKey, model.getIdentifier());
-        redisManager.sadd(dirtySetKey, model.getIdentifier());
+        String json = model.serialize().toString();
+        // Sofort in Redis (für alle Server sichtbar)
+        redis.set(redisPrefix + model.getIdentifier(), json);
+        // Markieren für späteren SQL-Schreibvorgang
+        redis.sadd(dirtySet, model.getIdentifier());
     }
 
-    public T get(String identifier) {
-        if (redisManager.sismember(deletedSetKey, identifier)) {
-            return null;
-        }
+    public CompletableFuture<List<T>> getAllAsync() {
+        return CompletableFuture.supplyAsync(this::getAllFromDatabase).thenCompose(dbList ->
+                redis.smembers(dirtySet).thenCompose(dirtyIds -> {
+                    if (dirtyIds.isEmpty()) return CompletableFuture.completedFuture(dbList);
 
-        String json = redisManager.get(redisPrefix + identifier);
-        if (json != null) {
-            T model = factory.get();
-            model.deserialize(gson.fromJson(json, JsonObject.class));
-            return model;
-        }
+                    Map<String, T> mergedMap = new HashMap<>();
+                    dbList.forEach(m -> mergedMap.put(m.getIdentifier(), m));
 
-        T dbModel = loadFromDatabase(identifier);
-        if (dbModel != null) {
-            set(dbModel);
-            return dbModel;
-        }
-        return null;
+                    List<CompletableFuture<Void>> futures = dirtyIds.stream()
+                            .map(id -> redis.get(redisPrefix + id).thenAccept(json -> {
+                                if (json != null) {
+                                    T model = factory.get();
+                                    model.deserialize(gson.fromJson(json, JsonObject.class));
+                                    mergedMap.put(id, model);
+                                }
+                            })).toList();
+
+                    return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                            .thenApply(v -> new ArrayList<>(mergedMap.values()));
+                })
+        );
     }
 
-    public void flush() {
-        java.util.Set<String> toSave = redisManager.smembers(dirtySetKey);
-        if (!toSave.isEmpty()) {
-            try (Connection conn = mariaDBManager.getConnection()) {
-                for (String id : toSave) {
-                    T model = get(id);
-                    if (model != null) {
-                        saveToDatabase(conn, model);
-                        redisManager.srem(dirtySetKey, id);
-                    }
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-
-        java.util.Set<String> toDelete = redisManager.smembers(deletedSetKey);
-        if (!toDelete.isEmpty()) {
-            System.out.println("🗑️ Lösche " + toDelete.size() + " Einträge (" + nodeName + ")...");
-            try (Connection conn = mariaDBManager.getConnection()) {
-                for (String id : toDelete) {
-                    removeFromDatabase(conn, id);
-                    redisManager.srem(deletedSetKey, id);
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    public void delete(String identifier) {
-        String key = redisPrefix + identifier;
-
-        redisManager.del(key);
-        redisManager.srem(dirtySetKey, identifier);
-        redisManager.sadd(deletedSetKey, identifier);
-    }
-
-    public java.util.List<T> getAll() {
-        java.util.Map<String, T> mergedData = new java.util.HashMap<>();
-
-        for (T dbModel : getAllFromDatabase()) {
-            mergedData.put(dbModel.getIdentifier(), dbModel);
-        }
-
-        java.util.Set<String> deletedIds = redisManager.smembers(deletedSetKey);
-        for (String id : deletedIds) {
-            mergedData.remove(id);
-        }
-        java.util.Set<String> dirtyIds = redisManager.smembers(dirtySetKey);
-        for (String id : dirtyIds) {
-            T cachedModel = get(id);
-            if (cachedModel != null) {
-                mergedData.put(id, cachedModel);
-            }
-        }
-
-        return new java.util.ArrayList<>(mergedData.values());
-    }
-
+    public abstract List<T> getAllFromDatabase();
+    protected abstract void saveToDatabase(Connection conn, String id, String json) throws SQLException;
     public abstract void createTableIfNotExists();
 
-    public abstract java.util.List<T> getAllFromDatabase();
-
-    protected abstract void removeFromDatabase(Connection conn, String identifier) throws SQLException;
-
-    protected abstract void saveToDatabase(Connection conn, T model) throws SQLException;
-
-    protected abstract T loadFromDatabase(String identifier);
+    public void flush() {
+        redis.smembers(dirtySet).thenAccept(ids -> {
+            if (ids.isEmpty()) return;
+            try (Connection conn = db.getConnection()) {
+                conn.setAutoCommit(false);
+                for (String id : ids) {
+                    // Synchrones Get innerhalb des Flush-Threads ist hier akzeptabel
+                    String json = redis.get(redisPrefix + id).join();
+                    if (json != null) {
+                        saveToDatabase(conn, id, json);
+                        redis.srem(dirtySet, id);
+                    }
+                }
+                conn.commit();
+            } catch (SQLException e) { e.printStackTrace(); }
+        });
+    }
 }

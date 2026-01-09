@@ -3,58 +3,35 @@ package de.mecrytv.mariadb;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import de.mecrytv.utils.DatabaseConfig;
-
 import java.sql.Connection;
 import java.sql.SQLException;
 
 public class MariaDBManager {
-
-    private HikariDataSource dataSource;
+    private final HikariDataSource dataSource;
 
     public MariaDBManager(DatabaseConfig config) {
-        String host = config.mariaHost();
-        int port = config.mariaPort();
-        String database = config.mariaDatabase();
-        String username = config.mariaUsername();
-        String password = config.mariaPassword();
+        HikariConfig hConfig = new HikariConfig();
+        hConfig.setJdbcUrl("jdbc:mariadb://" + config.mariaHost() + ":" + config.mariaPort() + "/" + config.mariaDatabase());
+        hConfig.setUsername(config.mariaUsername());
+        hConfig.setPassword(config.mariaPassword());
 
-        HikariConfig mariaDBConfig = new HikariConfig();
+        hConfig.setMaximumPoolSize(20);
+        hConfig.setMinimumIdle(10);
+        hConfig.setConnectionTimeout(3000);
+        hConfig.setMaxLifetime(1800000);
 
-        mariaDBConfig.setUsername(username);
-        mariaDBConfig.setPassword(password);
+        hConfig.addDataSourceProperty("cachePrepStmts", "true");
+        hConfig.addDataSourceProperty("prepStmtCacheSize", "5120");
+        hConfig.addDataSourceProperty("useServerPrepStmts", "true");
 
-        mariaDBConfig.setConnectionTimeout(2000);
-        mariaDBConfig.setMaximumPoolSize(10);
-        mariaDBConfig.setDriverClassName("org.mariadb.jdbc.Driver");
-
-        String jdbcURL = "jdbc:mariadb://" + host + ":" + port + "/" + database;
-        mariaDBConfig.setJdbcUrl(jdbcURL);
-
-        dataSource = new HikariDataSource(mariaDBConfig);
-
-        try {
-            Connection connection = getConnection();
-            closeConnection(connection);
-        } catch (SQLException e) {
-            throw new IllegalStateException("MySQL-Initialisierung fehlgeschlagen", e);
-        }
+        this.dataSource = new HikariDataSource(hConfig);
     }
 
     public Connection getConnection() throws SQLException {
         return dataSource.getConnection();
     }
 
-    public void closeConnection(Connection connection) {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-            }
-        } catch (SQLException e) {
-            System.out.println("Error closing connection: " + e.getMessage());
-        }
-    }
-
-    public void shutDown() {
-        dataSource.close();
+    public void shutdown() {
+        if (dataSource != null) dataSource.close();
     }
 }
