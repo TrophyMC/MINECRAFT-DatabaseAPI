@@ -10,21 +10,20 @@ public class MariaDBManager {
     private final HikariDataSource dataSource;
 
     public MariaDBManager(DatabaseConfig config) {
-        HikariConfig hConfig = new HikariConfig();
-        hConfig.setJdbcUrl("jdbc:mariadb://" + config.mariaHost() + ":" + config.mariaPort() + "/" + config.mariaDatabase());
-        hConfig.setUsername(config.mariaUsername());
-        hConfig.setPassword(config.mariaPassword());
+        HikariConfig hikariConfig = new HikariConfig();
 
-        hConfig.setMaximumPoolSize(20);
-        hConfig.setMinimumIdle(10);
-        hConfig.setConnectionTimeout(3000);
-        hConfig.setMaxLifetime(1800000);
+        hikariConfig.setDriverClassName("org.mariadb.jdbc.Driver");
 
-        hConfig.addDataSourceProperty("cachePrepStmts", "true");
-        hConfig.addDataSourceProperty("prepStmtCacheSize", "5120");
-        hConfig.addDataSourceProperty("useServerPrepStmts", "true");
+        hikariConfig.setJdbcUrl("jdbc:mariadb://" + config.mariaHost() + ":" + config.mariaPort() + "/" + config.mariaDatabase());
+        hikariConfig.setUsername(config.mariaUsername());
+        hikariConfig.setPassword(config.mariaPassword());
 
-        this.dataSource = new HikariDataSource(hConfig);
+        hikariConfig.setMaximumPoolSize(15);
+        hikariConfig.setMinimumIdle(5);
+        hikariConfig.addDataSourceProperty("cachePrepStmts", "true");
+        hikariConfig.addDataSourceProperty("prepStmtCacheSize", "5120");
+
+        this.dataSource = new HikariDataSource(hikariConfig);
     }
 
     public Connection getConnection() throws SQLException {
