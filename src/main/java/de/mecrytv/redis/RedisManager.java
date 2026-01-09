@@ -6,6 +6,11 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
+import io.lettuce.core.resource.NettyCustomizer;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioSocketChannel;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 
@@ -15,9 +20,6 @@ public class RedisManager {
     private final RedisAsyncCommands<String, String> async;
 
     public RedisManager(DatabaseConfig config) {
-        System.setProperty("io.lettuce.core.epoll", "false");
-        System.setProperty("io.lettuce.core.kqueue", "false");
-
         ClientResources res = DefaultClientResources.builder()
                 .ioThreadPoolSize(4)
                 .computationThreadPoolSize(4)

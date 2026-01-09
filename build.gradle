@@ -27,8 +27,6 @@ dependencies {
 }
 
 shadowJar {
-    relocate 'io.lettuce', 'de.mecrytv.libs.lettuce'
-
     archiveClassifier.set('')
     mergeServiceFiles()
 
