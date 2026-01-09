@@ -4,6 +4,9 @@ import de.mecrytv.utils.DatabaseConfig;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.resource.ClientResources;
+import io.lettuce.core.resource.DefaultClientResources;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 
@@ -13,8 +16,15 @@ public class RedisManager {
     private final RedisAsyncCommands<String, String> async;
 
     public RedisManager(DatabaseConfig config) {
+        ClientResources res = DefaultClientResources.builder()
+                .ioThreadPoolSize(4)
+                .computationThreadPoolSize(4)
+                .build();
+
         String auth = config.redisPassword().isEmpty() ? "" : ":" + config.redisPassword() + "@";
-        this.client = RedisClient.create("redis://" + auth + config.redisHost() + ":" + config.redisPort());
+        String url = "redis://" + auth + config.redisHost() + ":" + config.redisPort();
+
+        this.client = RedisClient.create(res, url);
         this.connection = client.connect();
         this.async = connection.async();
     }

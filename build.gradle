@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'de.mecrytv'
-version = '1.1.1'
+version = '1.1.2'
 
 java {
     toolchain {
@@ -22,6 +22,7 @@ dependencies {
     implementation 'io.lettuce:lettuce-core:7.2.1.RELEASE'
     implementation 'com.google.code.gson:gson:2.11.0'
     implementation 'com.google.guava:guava:33.3.1-jre'
+    implementation 'io.netty:netty-all:4.1.115.Final'
 }
 
 publishing {
