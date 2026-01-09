@@ -16,10 +16,10 @@ public class RedisManager {
     private final RedisAsyncCommands<String, String> async;
 
     public RedisManager(DatabaseConfig config) {
-        ClientResources res = DefaultClientResources.builder()
-                .ioThreadPoolSize(4)
-                .computationThreadPoolSize(4)
-                .build();
+        System.setProperty("io.lettuce.core.epoll", "false");
+        System.setProperty("io.lettuce.core.kqueue", "false");
+
+        ClientResources res = DefaultClientResources.create();
 
         String auth = config.redisPassword().isEmpty() ? "" : ":" + config.redisPassword() + "@";
         String url = "redis://" + auth + config.redisHost() + ":" + config.redisPort();
