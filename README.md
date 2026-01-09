@@ -27,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'de.mecrytv:DatabaseAPI:1.0.0'
+    implementation 'de.mecrytv:DatabaseAPI:1.0.1'
 }
 ```
 
