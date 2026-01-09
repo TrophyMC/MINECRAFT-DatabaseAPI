@@ -30,12 +30,25 @@ public class GenericCacheNode<T extends ICacheModel> extends CacheNode<T> {
     }
 
     @Override
+    protected T loadFromDatabase(String id) {
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT data FROM " + nodeName + " WHERE id = ?")) {
+            ps.setString(1, id);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                T model = factory.get();
+                model.deserialize(gson.fromJson(rs.getString("data"), JsonObject.class));
+                return model;
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return null;
+    }
+
+    @Override
     protected void saveToDatabase(Connection conn, String id, String json) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO " + nodeName + " (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = ?")) {
-            ps.setString(1, id);
-            ps.setString(2, json);
-            ps.setString(3, json);
+            ps.setString(1, id); ps.setString(2, json); ps.setString(3, json);
             ps.executeUpdate();
         }
     }

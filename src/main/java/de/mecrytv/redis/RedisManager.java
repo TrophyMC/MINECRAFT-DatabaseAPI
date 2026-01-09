@@ -19,12 +19,26 @@ public class RedisManager {
         this.async = connection.async();
     }
 
-    public CompletableFuture<String> get(String key) { return async.get(key).toCompletableFuture(); }
-    public void set(String key, String val) { async.set(key, val); }
-    public void sadd(String key, String member) { async.sadd(key, member); }
-    public void srem(String key, String member) { async.srem(key, member); }
+    public CompletableFuture<String> get(String key) {
+        return async.get(key).toCompletableFuture();
+    }
+    public void set(String key, String val) {
+        async.set(key, val);
+    }
+    public void setex(String key, long seconds, String value) {
+        async.setex(key, seconds, value);
+    }
+    public void sadd(String key, String member) {
+        async.sadd(key, member);
+    }
+    public void srem(String key, String member) {
+        async.srem(key, member);
+    }
     public CompletableFuture<Set<String>> smembers(String key) {
         return async.smembers(key).toCompletableFuture().thenApply(java.util.HashSet::new);
     }
-    public void disconnect() { connection.close(); client.shutdown(); }
+    public void disconnect() {
+        connection.close();
+        client.shutdown();
+    }
 }

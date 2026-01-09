@@ -28,12 +28,26 @@ public abstract class CacheNode<T extends ICacheModel> {
 
     public void set(T model) {
         String json = model.serialize().toString();
-        // Sofort in Redis (für alle Server sichtbar)
         redis.set(redisPrefix + model.getIdentifier(), json);
-        // Markieren für späteren SQL-Schreibvorgang
         redis.sadd(dirtySet, model.getIdentifier());
     }
 
+    public CompletableFuture<T> get(String id) {
+        return redis.get(redisPrefix + id).thenCompose(json -> {
+            if (json != null) {
+                T model = factory.get();
+                model.deserialize(gson.fromJson(json, JsonObject.class));
+                return CompletableFuture.completedFuture(model);
+            }
+
+            return CompletableFuture.supplyAsync(() -> loadFromDatabase(id)).thenApply(dbModel -> {
+                if (dbModel != null) {
+                    redis.setex(redisPrefix + id, 1800, dbModel.serialize().toString());
+                }
+                return dbModel;
+            });
+        });
+    }
     public CompletableFuture<List<T>> getAllAsync() {
         return CompletableFuture.supplyAsync(this::getAllFromDatabase).thenCompose(dbList ->
                 redis.smembers(dirtySet).thenCompose(dirtyIds -> {
@@ -58,6 +72,7 @@ public abstract class CacheNode<T extends ICacheModel> {
     }
 
     public abstract List<T> getAllFromDatabase();
+    protected abstract T loadFromDatabase(String id);
     protected abstract void saveToDatabase(Connection conn, String id, String json) throws SQLException;
     public abstract void createTableIfNotExists();
 
@@ -67,7 +82,6 @@ public abstract class CacheNode<T extends ICacheModel> {
             try (Connection conn = db.getConnection()) {
                 conn.setAutoCommit(false);
                 for (String id : ids) {
-                    // Synchrones Get innerhalb des Flush-Threads ist hier akzeptabel
                     String json = redis.get(redisPrefix + id).join();
                     if (json != null) {
                         saveToDatabase(conn, id, json);
