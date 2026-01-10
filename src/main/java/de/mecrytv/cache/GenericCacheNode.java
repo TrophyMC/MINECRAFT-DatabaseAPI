@@ -61,4 +61,15 @@ public class GenericCacheNode<T extends ICacheModel> extends CacheNode<T> {
             ps.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); }
     }
+
+    @Override
+    protected void deleteFromDatabase(String id) {
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement("DELETE FROM " + nodeName + " WHERE id = ?")) {
+            ps.setString(1, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 }

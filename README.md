@@ -2,11 +2,12 @@
 Eine leistungsstarke, hybride Datenbank-API für Java-Anwendungen (optimiert für Minecraft-Netzwerke). Sie kombiniert **Redis** für extrem schnelle Ladezeiten (Caching) mit **MariaDB** für dauerhafte Datensicherheit.
 
 ## ✨ Features
-- 🚀 Hybrid-System: Automatisches Caching über Redis (Cache-Aside Pattern).
-🛠️ Generic CRUD: Erstellen, Lesen, Aktualisieren und Löschen von Daten ohne eine einzige Zeile SQL.
-- 🔄 Auto-Sync: Ein Hintergrund-Task (Scheduler) schreibt geänderte Daten automatisch von Redis in die MariaDB.
-- 🧩 Zero Boilerplate: Keine manuellen DAOs oder Repositories nötig – ein Model reicht.
-- 🌍 Global Access: "Profi-Weg" Zugriff über statische Methoden von überall im Projekt.
+- 🚀 **Hybrid-System:** Automatisches Caching über Redis (Cache-Aside Pattern).
+- ⚡ **Async Support:** Volle Unterstützung von `CompletableFuture` für lag-freie Datenbankzugriffe.
+- 🛠️ **Generic CRUD:** Erstellen, Lesen, Aktualisieren und Löschen von Daten ohne SQL-Kenntnisse.
+- 🔄 **Auto-Sync:** Ein Hintergrund-Task schreibt geänderte Daten automatisch von Redis in die MariaDB.
+- 🧩 **Zero Boilerplate:** Keine manuellen DAOs nötig – ein POJO-Model reicht aus.
+- 🌍 **Global Access:** Zugriff über ein Singleton-Pattern (`getInstance()`) von überall im Projekt.
 
 ## 🚀 Installation
 
@@ -27,7 +28,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'de.mecrytv:DatabaseAPI:1.1.4'
+    implementation 'de.mecrytv:DatabaseAPI:1.1.5'
 }
 ```
 
@@ -93,28 +94,33 @@ DatabaseConfig config = new DatabaseConfig(
     "localhost", 6379, "redis_pass"              // Redis
 );
 
-DatabaseAPI api = new DatabaseAPI(config, "de.yourproject.models");
+DatabaseAPI api = new DatabaseAPI(dbConfig);
 api.registerModel("users", UserProfile::new);
 ```
 
 ### 3. Daten verwenden
 Greife von **jedem Package** aus direkt auf deine Daten zu:
 ```java
-// GET: Lädt aus Redis (oder DB, falls nicht in Redis)
-UserProfile profile = DatabaseAPI.get("users", "UUID-123");
+// Einzelnen Report laden
+DatabaseAPI.<ReportModel>get("reports", "ID123").thenAccept(report -> {
+    if (report != null) {
+        System.out.println("Grund: " + report.getReason());
+    }
+});
 
-// SET: Speichert in Redis und markiert für DB-Update
-profile.setCoins(500);
-DatabaseAPI.set("users", profile);
+// Alle Reports laden
+DatabaseAPI.<ReportModel>getAll("reports").thenAccept(allReports -> {
+    System.out.println("Einträge in DB: " + allReports.size());
+});
 
-// DELETE: Entfernt aus Cache & Datenbank
-DatabaseAPI.delete("users", "UUID-123");
+// Speichern (schreibt sofort in Redis, verzögert in MariaDB)
+DatabaseAPI.set("reports", myModel);
 
-// GET ALL: Lädt alle Einträge aus der MariaDB
-List<UserProfile> allUsers = DatabaseAPI.getAll("users");
+// Löschen (entfernt aus Redis & MariaDB)
+DatabaseAPI.delete("reports", "ID123");
 ```
 
 ## ⚙️ Funktionsweise: Cache-Aside Pattern
-1. **Laden:** Die API prüft zuerst Redis. Ist der Key dort nicht vorhanden, wird die MariaDB abgefragt und Redis automatisch aktualisiert.
-2. **Speichern:** Daten werden sofort in Redis geschrieben und im "Dirty-Set" markiert.
-3. **Flush:** Ein automatischer Scheduler (Standard: alle 5 Minuten) schreibt alle geänderten Daten gesammelt in die MariaDB.
+1. **Laden:** Prüft Redis -> Falls leer -> MariaDB -> Cache Update.
+2. **Speichern:** Daten gehen sofort in Redis und werden als "dirty" markiert.
+3. **Flush:** Ein automatischer Scheduler schreibt alle geänderten Daten gesammelt in festen Intervallen in die MariaDB.

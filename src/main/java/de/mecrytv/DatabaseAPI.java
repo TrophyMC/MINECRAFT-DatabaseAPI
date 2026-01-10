@@ -85,6 +85,14 @@ public class DatabaseAPI {
         cacheService.registerNode(new GenericCacheNode<>(name, factory, redis, dbManager));
     }
 
+    @SuppressWarnings("unchecked")
+    public static <T extends ICacheModel> void delete(String node, String id) {
+        CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
+        if (cacheNode != null) {
+            cacheNode.delete(id);
+        }
+    }
+
     public void shutdown() {
         scheduler.shutdown();
         dbExecutor.shutdown();

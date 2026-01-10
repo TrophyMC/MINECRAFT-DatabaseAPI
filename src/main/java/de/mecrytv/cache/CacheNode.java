@@ -73,8 +73,14 @@ public abstract class CacheNode<T extends ICacheModel> {
 
     public abstract List<T> getAllFromDatabase();
     protected abstract T loadFromDatabase(String id);
+    protected abstract void deleteFromDatabase(String id);
     protected abstract void saveToDatabase(Connection conn, String id, String json) throws SQLException;
     public abstract void createTableIfNotExists();
+    public void delete(String id) {
+        redis.del(redisPrefix + id);
+        redis.srem(dirtySet, id);
+        CompletableFuture.runAsync(() -> deleteFromDatabase(id));
+    }
 
     public void flush() {
         redis.smembers(dirtySet).thenAccept(ids -> {

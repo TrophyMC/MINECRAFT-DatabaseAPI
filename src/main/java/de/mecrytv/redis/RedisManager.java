@@ -41,6 +41,9 @@ public class RedisManager {
     public CompletableFuture<Set<String>> smembers(String key) {
         return async.smembers(key).toCompletableFuture().thenApply(java.util.HashSet::new);
     }
+    public void del(String key) {
+        async.del(key);
+    }
 
     public void disconnect() {
         connection.close();
