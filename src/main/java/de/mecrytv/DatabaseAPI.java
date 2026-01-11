@@ -87,10 +87,21 @@ public class DatabaseAPI {
     }
     public void shutdown() {
         scheduler.shutdown();
-        dbExecutor.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+        }
+
+        System.out.println("[DatabaseAPI] Starte finalen Datenbank-Sync...");
         cacheService.flushAll();
+
+        dbExecutor.shutdown();
         redis.disconnect();
         dbManager.shutdown();
+        System.out.println("[DatabaseAPI] Alle Verbindungen sauber getrennt.");
     }
 
     private void startHeartbeat() {

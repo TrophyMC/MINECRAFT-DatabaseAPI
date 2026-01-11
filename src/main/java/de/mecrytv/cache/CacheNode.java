@@ -83,19 +83,23 @@ public abstract class CacheNode<T extends ICacheModel> {
     }
 
     public void flush() {
-        redis.smembers(dirtySet).thenAccept(ids -> {
-            if (ids.isEmpty()) return;
-            try (Connection conn = db.getConnection()) {
-                conn.setAutoCommit(false);
-                for (String id : ids) {
-                    String json = redis.get(redisPrefix + id).join();
-                    if (json != null) {
-                        saveToDatabase(conn, id, json);
-                        redis.srem(dirtySet, id);
-                    }
+        Set<String> ids = redis.smembers(dirtySet).join();
+
+        if (ids == null || ids.isEmpty()) return;
+        try (Connection conn = db.getConnection()) {
+            conn.setAutoCommit(false);
+            for (String id : ids) {
+                String json = redis.get(redisPrefix + id).join();
+                if (json != null) {
+                    saveToDatabase(conn, id, json);
+                    redis.srem(dirtySet, id);
                 }
-                conn.commit();
-            } catch (SQLException e) { e.printStackTrace(); }
-        });
+            }
+            conn.commit();
+            System.out.println("[DatabaseAPI] " + nodeName + ": " + ids.size() + " Einträge erfolgreich in MariaDB gesichert.");
+        } catch (SQLException e) {
+            System.err.println("[DatabaseAPI] Fehler beim Flushen von " + nodeName);
+            e.printStackTrace();
+        }
     }
 }
