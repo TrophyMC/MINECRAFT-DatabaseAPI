@@ -23,6 +23,11 @@ public class MariaDBManager {
         hikariConfig.addDataSourceProperty("cachePrepStmts", "true");
         hikariConfig.addDataSourceProperty("prepStmtCacheSize", "5120");
 
+        hikariConfig.setConnectionTestQuery("SELECT 1");
+        hikariConfig.setValidationTimeout(3000);
+        hikariConfig.setIdleTimeout(60000);
+        hikariConfig.setMaxLifetime(1800000);
+
         this.dataSource = new HikariDataSource(hikariConfig);
     }
 

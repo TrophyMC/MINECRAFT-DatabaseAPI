@@ -44,6 +44,9 @@ public class RedisManager {
     public void del(String key) {
         async.del(key);
     }
+    public CompletableFuture<String> ping() {
+        return async.ping().toCompletableFuture();
+    }
 
     public void disconnect() {
         connection.close();

@@ -17,7 +17,6 @@ public class DatabaseAPI {
     private final CacheService cacheService = new CacheService();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-    // Separater Executor für SQL-Abfragen, um den Main-Thread zu entlasten
     private final ExecutorService dbExecutor = Executors.newFixedThreadPool(4);
 
     public DatabaseAPI(DatabaseConfig config) {
@@ -25,13 +24,12 @@ public class DatabaseAPI {
         this.redis = new RedisManager(config);
         this.dbManager = new MariaDBManager(config);
         scheduler.scheduleAtFixedRate(cacheService::flushAll, 5, 5, TimeUnit.MINUTES);
+
+        startHeartbeat();
     }
 
     public static DatabaseAPI getInstance() { return instance; }
 
-    /**
-     * Holt einen einzelnen Spaltenwert asynchron (z.B. Sprache via UUID).
-     */
     public CompletableFuture<String> getGenericAsync(String database, String table, String keyColumn, String valueColumn, String identifier) {
         String redisKey = "cache:generic:" + database + ":" + table + ":" + identifier;
 
@@ -50,41 +48,36 @@ public class DatabaseAPI {
 
                     if (rs.next()) {
                         String result = rs.getString(valueColumn);
-                        redis.setex(redisKey, 1800, result); // 30 Min Cache
+                        redis.setex(redisKey, 1800, result);
                         return result;
                     }
                 } catch (SQLException e) {
-                    e.printStackTrace();
+                    throw new RuntimeException("SQL Fehler in getGenericAsync", e);
                 }
                 return null;
             }, dbExecutor);
         });
     }
-
     @SuppressWarnings("unchecked")
     public static <T extends ICacheModel> void set(String node, T model) {
         CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
         if (cacheNode != null) cacheNode.set(model);
     }
-
     @SuppressWarnings("unchecked")
     public static <T extends ICacheModel> CompletableFuture<List<T>> getAll(String node) {
         CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
         if (cacheNode == null) return CompletableFuture.completedFuture(List.of());
         return cacheNode.getAllAsync();
     }
-
     @SuppressWarnings("unchecked")
     public static <T extends ICacheModel> CompletableFuture<T> get(String node, String id) {
         CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
         if (cacheNode == null) return CompletableFuture.completedFuture(null);
         return cacheNode.get(id);
     }
-
     public <T extends ICacheModel> void registerModel(String name, Supplier<T> factory) {
         cacheService.registerNode(new GenericCacheNode<>(name, factory, redis, dbManager));
     }
-
     @SuppressWarnings("unchecked")
     public static <T extends ICacheModel> void delete(String node, String id) {
         CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
@@ -92,12 +85,28 @@ public class DatabaseAPI {
             cacheNode.delete(id);
         }
     }
-
     public void shutdown() {
         scheduler.shutdown();
         dbExecutor.shutdown();
         cacheService.flushAll();
         redis.disconnect();
         dbManager.shutdown();
+    }
+
+    private void startHeartbeat() {
+        scheduler.scheduleAtFixedRate(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 Statement stmt = conn.createStatement()) {
+                stmt.executeQuery("SELECT 1");
+            } catch (SQLException e) {
+                System.err.println("[DatabaseAPI] MariaDB Heartbeat fehlgeschlagen: " + e.getMessage());
+            }
+
+            redis.ping().exceptionally(ex -> {
+                System.err.println("[DatabaseAPI] Redis Heartbeat fehlgeschlagen: " + ex.getMessage());
+                return null;
+            });
+
+        }, 30, 30, TimeUnit.SECONDS);
     }
 }
