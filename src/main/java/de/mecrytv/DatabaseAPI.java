@@ -1,5 +1,6 @@
 package de.mecrytv;
 
+import com.google.gson.JsonObject;
 import de.mecrytv.cache.*;
 import de.mecrytv.mariadb.MariaDBManager;
 import de.mecrytv.model.ICacheModel;
@@ -119,5 +120,19 @@ public class DatabaseAPI {
             });
 
         }, 30, 30, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T extends ICacheModel> CompletableFuture<Void> updateAsync(String node, String id, JsonObject updates) {
+        CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
+        if (cacheNode == null) return CompletableFuture.failedFuture(new IllegalArgumentException("Node nicht gefunden"));
+
+        return cacheNode.get(id).thenAccept(model -> {
+            if (model == null) throw new RuntimeException("Modell mit ID " + id + " nicht gefunden");
+
+            model.applyUpdate(updates);
+
+            cacheNode.set(model);
+        });
     }
 }
