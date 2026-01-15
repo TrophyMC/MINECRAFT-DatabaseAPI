@@ -1,5 +1,6 @@
 package de.mecrytv;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import de.mecrytv.cache.*;
 import de.mecrytv.mariadb.MariaDBManager;
@@ -12,11 +13,13 @@ import java.util.concurrent.*;
 import java.util.function.Supplier;
 
 public class DatabaseAPI {
+
     private static DatabaseAPI instance;
     private final RedisManager redis;
     private final MariaDBManager dbManager;
     private final CacheService cacheService = new CacheService();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final Gson gson = new Gson();
 
     private final ExecutorService dbExecutor = Executors.newFixedThreadPool(4);
 
@@ -31,11 +34,17 @@ public class DatabaseAPI {
 
     public static DatabaseAPI getInstance() { return instance; }
 
-    public CompletableFuture<String> getGenericAsync(String database, String table, String keyColumn, String valueColumn, String identifier) {
+    public CompletableFuture<JsonObject> getGenericAsync(String database, String table, String keyColumn, String valueColumn, String identifier) {
         String redisKey = "cache:generic:" + database + ":" + table + ":" + identifier;
 
         return redis.get(redisKey).thenCompose(cached -> {
-            if (cached != null) return CompletableFuture.completedFuture(cached);
+            if (cached != null) {
+                try {
+                    return CompletableFuture.completedFuture(gson.fromJson(cached, JsonObject.class));
+                } catch (Exception e) {
+                    return CompletableFuture.completedFuture(null);
+                }
+            }
 
             return CompletableFuture.supplyAsync(() -> {
                 String query = String.format("SELECT %s FROM %s.%s WHERE %s = ? LIMIT 1",
@@ -49,11 +58,15 @@ public class DatabaseAPI {
 
                     if (rs.next()) {
                         String result = rs.getString(valueColumn);
-                        redis.setex(redisKey, 1800, result);
-                        return result;
+                        if (result != null) {
+                            redis.setex(redisKey, 1800, result);
+                            return gson.fromJson(result, JsonObject.class);
+                        }
                     }
                 } catch (SQLException e) {
                     throw new RuntimeException("SQL Fehler in getGenericAsync", e);
+                } catch (Exception e) {
+                    return null;
                 }
                 return null;
             }, dbExecutor);
