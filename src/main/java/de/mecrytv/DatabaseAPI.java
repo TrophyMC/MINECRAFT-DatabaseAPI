@@ -27,18 +27,18 @@ public class DatabaseAPI {
         instance = this;
         this.redis = new RedisManager(config);
         this.dbManager = new MariaDBManager(config);
+
         scheduler.scheduleAtFixedRate(cacheService::flushAll, 5, 5, TimeUnit.MINUTES);
 
         startHeartbeat();
     }
 
     public static DatabaseAPI getInstance() { return instance; }
-
     public CompletableFuture<JsonObject> getGenericAsync(String database, String table, String keyColumn, String valueColumn, String identifier) {
-        String redisKey = "cache:generic:" + database + ":" + table + ":" + identifier;
+        String redisKey = "cache:generic:" + table + ":" + identifier;
 
         return redis.get(redisKey).thenCompose(cached -> {
-            if (cached != null) {
+            if (cached != null && !cached.isEmpty()) {
                 try {
                     return CompletableFuture.completedFuture(gson.fromJson(cached, JsonObject.class));
                 } catch (Exception e) {
@@ -64,12 +64,31 @@ public class DatabaseAPI {
                         }
                     }
                 } catch (SQLException e) {
-                    throw new RuntimeException("SQL Fehler in getGenericAsync", e);
-                } catch (Exception e) {
-                    return null;
+                    System.err.println("[DatabaseAPI] SQL Fehler in getGenericAsync: " + e.getMessage());
                 }
                 return null;
             }, dbExecutor);
+        });
+    }
+    public void setGenericAsync(String database, String table, String keyColumn, String valueColumn, String identifier, JsonObject data) {
+        String redisKey = "cache:generic:" + table + ":" + identifier;
+        String jsonString = data.toString();
+
+        redis.set(redisKey, jsonString);
+
+        dbExecutor.execute(() -> {
+            String query = String.format("INSERT INTO %s.%s (%s, %s) VALUES (?, ?) ON DUPLICATE KEY UPDATE %s = ?",
+                    database, table, keyColumn, valueColumn, valueColumn);
+
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, identifier);
+                stmt.setString(2, jsonString);
+                stmt.setString(3, jsonString);
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                System.err.println("[DatabaseAPI] Fehler beim Background-Update von " + table + ": " + e.getMessage());
+            }
         });
     }
     @SuppressWarnings("unchecked")
@@ -117,7 +136,6 @@ public class DatabaseAPI {
         dbManager.shutdown();
         System.out.println("[DatabaseAPI] Alle Verbindungen sauber getrennt.");
     }
-
     private void startHeartbeat() {
         scheduler.scheduleAtFixedRate(() -> {
             try (Connection conn = dbManager.getConnection();
@@ -134,7 +152,6 @@ public class DatabaseAPI {
 
         }, 30, 30, TimeUnit.SECONDS);
     }
-
     @SuppressWarnings("unchecked")
     public static <T extends ICacheModel> CompletableFuture<Void> updateAsync(String node, String id, JsonObject updates) {
         CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
@@ -142,9 +159,7 @@ public class DatabaseAPI {
 
         return cacheNode.get(id).thenAccept(model -> {
             if (model == null) throw new RuntimeException("Modell mit ID " + id + " nicht gefunden");
-
             model.applyUpdate(updates);
-
             cacheNode.set(model);
         });
     }
