@@ -84,7 +84,7 @@ public abstract class CacheNode<T extends ICacheModel> {
     public CompletableFuture<List<T>> getListAsync(String jsonKey, String value) {
         CompletableFuture<List<T>> dbFuture = CompletableFuture.supplyAsync(() -> {
             List<T> list = new ArrayList<>();
-            String sql = "SELECT data FROM " + nodeName + " WHERE JSON_EXTRACT(data, '$.\" + jsonKey + \"') = ?";
+            String sql = "SELECT data FROM " + nodeName + " WHERE JSON_EXTRACT(data, '$.\"" + jsonKey + "\"') = ?";
 
             try (Connection conn = db.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -96,6 +96,7 @@ public abstract class CacheNode<T extends ICacheModel> {
                     list.add(model);
                 }
             } catch (SQLException e) {
+                System.err.println("[DatabaseAPI] Fehler bei getListAsync SQL für " + nodeName + ": " + e.getMessage());
                 e.printStackTrace();
             }
             return list;
