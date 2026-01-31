@@ -169,4 +169,8 @@ public class DatabaseAPI {
             cacheNode.set(model);
         });
     }
+
+    public RedisManager getRedis() {
+        return redis;
+    }
 }
