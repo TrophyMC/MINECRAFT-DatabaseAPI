@@ -81,6 +81,53 @@ public abstract class CacheNode<T extends ICacheModel> {
         redis.srem(dirtySet, id);
         CompletableFuture.runAsync(() -> deleteFromDatabase(id));
     }
+    public CompletableFuture<List<T>> getListAsync(String jsonKey, String value) {
+        CompletableFuture<List<T>> dbFuture = CompletableFuture.supplyAsync(() -> {
+            List<T> list = new ArrayList<>();
+            String sql = "SELECT data FROM " + nodeName + " WHERE JSON_EXTRACT(data, '$.\" + jsonKey + \"') = ?";
+
+            try (Connection conn = db.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+
+                ps.setString(1, value);
+                ResultSet rs = ps.executeQuery();
+
+                while (rs.next()) {
+                    T model = factory.get();
+                    model.deserialize(gson.fromJson(rs.getString("data"), JsonObject.class));
+                    list.add(model);
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+            return list;
+        });
+
+        return dbFuture.thenCompose(dbList ->
+                redis.smembers(dirtySet).thenCompose(dirtyIds -> {
+                    if (dirtyIds.isEmpty()) return CompletableFuture.completedFuture(dbList);
+
+                    Map<String, T> mergedMap = new HashMap<>();
+                    dbList.forEach(m -> mergedMap.put(m.getIdentifier(), m));
+
+                    List<CompletableFuture<Void>> futures = dirtyIds.stream()
+                            .map(id -> redis.get(redisPrefix + id).thenAccept(json -> {
+                                if (json != null) {
+                                    JsonObject jsonObject = gson.fromJson(json, JsonObject.class);
+                                    // Filter-Prüfung im JSON
+                                    if (jsonObject.has(jsonKey) && jsonObject.get(jsonKey).getAsString().equals(value)) {
+                                        T model = factory.get();
+                                        model.deserialize(jsonObject);
+                                        mergedMap.put(id, model);
+                                    }
+                                }
+                            })).toList();
+
+                    return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                            .thenApply(v -> new ArrayList<>(mergedMap.values()));
+                })
+        );
+    }
 
     public void flush() {
         Set<String> ids = redis.smembers(dirtySet).join();

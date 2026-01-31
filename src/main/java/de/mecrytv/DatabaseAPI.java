@@ -34,6 +34,12 @@ public class DatabaseAPI {
     }
 
     public static DatabaseAPI getInstance() { return instance; }
+    @SuppressWarnings("unchecked")
+    public static <T extends ICacheModel> CompletableFuture<List<T>> getList(String node, String jsonKey, String value) {
+        CacheNode<T> cacheNode = (CacheNode<T>) instance.cacheService.getNode(node);
+        if (cacheNode == null) return CompletableFuture.completedFuture(List.of());
+        return cacheNode.getListAsync(jsonKey, value);
+    }
     public CompletableFuture<JsonObject> getGenericAsync(String database, String table, String keyColumn, String valueColumn, String identifier) {
         String redisKey = "cache:generic:" + table + ":" + identifier;
 
