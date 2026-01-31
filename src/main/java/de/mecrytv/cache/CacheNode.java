@@ -88,10 +88,8 @@ public abstract class CacheNode<T extends ICacheModel> {
 
             try (Connection conn = db.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
-
                 ps.setString(1, value);
                 ResultSet rs = ps.executeQuery();
-
                 while (rs.next()) {
                     T model = factory.get();
                     model.deserialize(gson.fromJson(rs.getString("data"), JsonObject.class));
@@ -114,7 +112,6 @@ public abstract class CacheNode<T extends ICacheModel> {
                             .map(id -> redis.get(redisPrefix + id).thenAccept(json -> {
                                 if (json != null) {
                                     JsonObject jsonObject = gson.fromJson(json, JsonObject.class);
-                                    // Filter-Prüfung im JSON
                                     if (jsonObject.has(jsonKey) && jsonObject.get(jsonKey).getAsString().equals(value)) {
                                         T model = factory.get();
                                         model.deserialize(jsonObject);
