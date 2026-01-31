@@ -4,8 +4,8 @@ plugins {
     id 'com.gradleup.shadow' version '8.3.0'
 }
 
-group = 'de.mecrytv'
-version = '1.2.3'
+group = 'de.mecrytv.databaseapi'
+version = '1.2.4'
 
 java {
     toolchain {
