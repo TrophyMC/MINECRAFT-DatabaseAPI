@@ -1,23 +1,23 @@
-package de.mecrytv.redis;
+package de.mecrytv.databaseapi.redis;
 
-import de.mecrytv.utils.DatabaseConfig;
+import de.mecrytv.databaseapi.utils.DatabaseConfig;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.pubsub.RedisPubSubAdapter;
+import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
-import io.lettuce.core.resource.NettyCustomizer;
-import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioSocketChannel;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class RedisManager {
     private final RedisClient client;
     private final StatefulRedisConnection<String, String> connection;
     private final RedisAsyncCommands<String, String> async;
+    private StatefulRedisPubSubConnection<String, String> pubSubConnection;
 
     public RedisManager(DatabaseConfig config) {
         ClientResources res = DefaultClientResources.builder()
@@ -31,6 +31,7 @@ public class RedisManager {
         this.client = RedisClient.create(res, url);
         this.connection = client.connect();
         this.async = connection.async();
+        this.pubSubConnection = client.connectPubSub();
     }
 
     public CompletableFuture<String> get(String key) { return async.get(key).toCompletableFuture(); }
@@ -46,6 +47,20 @@ public class RedisManager {
     }
     public CompletableFuture<String> ping() {
         return async.ping().toCompletableFuture();
+    }
+    public void publish(String channel, String message) {
+        async.publish(channel, message);
+    }
+    public void subscribe(String channel, Consumer<String> messageConsumer) {
+        pubSubConnection.addListener(new RedisPubSubAdapter<String, String>() {
+            @Override
+            public void message(String chan, String msg) {
+                if (chan.equals(channel)) {
+                    messageConsumer.accept(msg);
+                }
+            }
+        });
+        pubSubConnection.async().subscribe(channel);
     }
 
     public void disconnect() {

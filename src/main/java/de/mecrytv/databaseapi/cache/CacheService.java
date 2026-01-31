@@ -1,4 +1,4 @@
-package de.mecrytv.cache;
+package de.mecrytv.databaseapi.cache;
 
 import com.google.common.reflect.ClassPath;
 import java.lang.reflect.Modifier;

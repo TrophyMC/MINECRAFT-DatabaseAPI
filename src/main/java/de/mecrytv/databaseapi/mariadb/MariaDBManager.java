@@ -1,8 +1,8 @@
-package de.mecrytv.mariadb;
+package de.mecrytv.databaseapi.mariadb;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import de.mecrytv.utils.DatabaseConfig;
+import de.mecrytv.databaseapi.utils.DatabaseConfig;
 import java.sql.Connection;
 import java.sql.SQLException;
 

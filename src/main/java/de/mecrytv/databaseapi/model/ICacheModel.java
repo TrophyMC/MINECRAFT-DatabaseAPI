@@ -1,4 +1,4 @@
-package de.mecrytv.model;
+package de.mecrytv.databaseapi.model;
 
 import com.google.gson.JsonObject;
 

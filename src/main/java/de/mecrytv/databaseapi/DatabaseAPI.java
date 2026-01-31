@@ -1,12 +1,12 @@
-package de.mecrytv;
+package de.mecrytv.databaseapi;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import de.mecrytv.cache.*;
-import de.mecrytv.mariadb.MariaDBManager;
-import de.mecrytv.model.ICacheModel;
-import de.mecrytv.redis.RedisManager;
-import de.mecrytv.utils.DatabaseConfig;
+import de.mecrytv.databaseapi.cache.*;
+import de.mecrytv.databaseapi.mariadb.MariaDBManager;
+import de.mecrytv.databaseapi.model.ICacheModel;
+import de.mecrytv.databaseapi.redis.RedisManager;
+import de.mecrytv.databaseapi.utils.DatabaseConfig;
 import java.sql.*;
 import java.util.List;
 import java.util.concurrent.*;

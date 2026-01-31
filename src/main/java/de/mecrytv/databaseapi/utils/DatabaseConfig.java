@@ -1,4 +1,4 @@
-package de.mecrytv.utils;
+package de.mecrytv.databaseapi.utils;
 
 public record DatabaseConfig(
         String mariaHost, int mariaPort, String mariaDatabase, String mariaUsername, String mariaPassword,

@@ -1,10 +1,10 @@
-package de.mecrytv.cache;
+package de.mecrytv.databaseapi.cache;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import de.mecrytv.mariadb.MariaDBManager;
-import de.mecrytv.model.ICacheModel;
-import de.mecrytv.redis.RedisManager;
+import de.mecrytv.databaseapi.mariadb.MariaDBManager;
+import de.mecrytv.databaseapi.model.ICacheModel;
+import de.mecrytv.databaseapi.redis.RedisManager;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
